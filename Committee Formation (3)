@@ -1,0 +1,68 @@
+module prasanth_addr::CommitteeFormation {
+    use aptos_framework::signer;
+    use aptos_framework::timestamp;
+    use std::vector;
+
+    
+    const E_INSUFFICIENT_CANDIDATES: u64 = 1;
+    const E_INVALID_COMMITTEE_SIZE: u64 = 2;
+    const E_ALREADY_CANDIDATE: u64 = 3;
+
+    
+    struct CommitteePool has store, key {
+        candidates: vector<address>,  
+        committee_size: u64,           
+        selected_committee: vector<address>, 
+        proposal_id: u64,             
+    }
+
+    
+    public fun create_committee_pool(
+        creator: &signer, 
+        committee_size: u64, 
+        proposal_id: u64
+    ) {
+        assert!(committee_size > 0, E_INVALID_COMMITTEE_SIZE);
+        
+        let pool = CommitteePool {
+            candidates: vector::empty<address>(),
+            committee_size,
+            selected_committee: vector::empty<address>(),
+            proposal_id,
+        };
+        move_to(creator, pool);
+    }
+
+    
+    public fun register_and_select_committee(
+        candidate: &signer, 
+        pool_creator: address
+    ) acquires CommitteePool {
+        let candidate_addr = signer::address_of(candidate);
+        let pool = borrow_global_mut<CommitteePool>(pool_creator);
+        
+    
+        assert!(!vector::contains(&pool.candidates, &candidate_addr), E_ALREADY_CANDIDATE);
+        
+    
+        vector::push_back(&mut pool.candidates, candidate_addr);
+        
+        
+        if (vector::length(&pool.candidates) >= pool.committee_size) {
+            let seed = timestamp::now_microseconds();
+            let total_candidates = vector::length(&pool.candidates);
+            
+            
+            let i = 0;
+            while (i < pool.committee_size) {
+                let random_index = (seed + i) % total_candidates;
+                let selected_candidate = *vector::borrow(&pool.candidates, random_index);
+                
+                if (!vector::contains(&pool.selected_committee, &selected_candidate)) {
+                    vector::push_back(&mut pool.selected_committee, selected_candidate);
+                };
+                i = i + 1;
+            };
+        };
+    }
+}
